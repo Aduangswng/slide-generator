@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Slide Generator</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@6.0.1/dist/reveal.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@6.0.1/dist/theme/white.css" id="reveal-theme" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>AI Slide Generator</h1>
+    <p class="tagline">Describe your presentation. Get a ready-to-present deck.</p>
+  </header>
+
+  <main>
+    <section id="form-view" class="panel">
+      <form id="deck-form">
+        <label for="topic">
+          What is your presentation about? <span class="required">*</span>
+          <textarea id="topic" name="topic" maxlength="500" rows="3" required
+            placeholder="e.g. The causes and effects of climate change"></textarea>
+        </label>
+
+        <label for="audience">
+          Audience <span class="optional">(optional)</span>
+          <input type="text" id="audience" name="audience" maxlength="200"
+            placeholder="e.g. high school students" />
+        </label>
+
+        <div class="form-row">
+          <label for="tone">
+            Tone / style
+            <select id="tone" name="tone">
+              <option value="Professional" selected>Professional</option>
+              <option value="Casual">Casual</option>
+              <option value="Academic">Academic</option>
+              <option value="Persuasive">Persuasive</option>
+            </select>
+          </label>
+
+          <label for="slideCount">
+            Number of slides: <span id="slideCountLabel">8</span>
+            <input type="range" id="slideCount" name="slideCount" min="5" max="20" value="8" />
+          </label>
+        </div>
+
+        <button type="submit" id="generate-btn">Generate slides</button>
+        <p id="form-error" class="error-text" role="alert" hidden></p>
+      </form>
+    </section>
+
+    <section id="loading-view" class="panel" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="loading-text">Thinking of a great deck...</p>
+    </section>
+
+    <section id="result-view" hidden>
+      <div class="result-toolbar">
+        <button id="back-btn" type="button" class="secondary-btn">&larr; Start over</button>
+        <div class="result-toolbar-right">
+          <button id="download-btn" type="button">Download .pptx</button>
+        </div>
+      </div>
+
+      <div class="result-panels">
+        <div class="preview-panel">
+          <h2>Preview</h2>
+          <div class="reveal">
+            <div class="slides" id="slides-container"></div>
+          </div>
+          <p class="hint">Use arrow keys or click to navigate. Click "Edit" on a slide to change its text.</p>
+        </div>
+
+        <div class="edit-panel">
+          <h2>Edit slides</h2>
+          <div id="edit-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="error-view" class="panel" hidden>
+      <p id="error-text" class="error-text"></p>
+      <button id="error-retry-btn" type="button" class="secondary-btn">Try again</button>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Built with Gemini, reveal.js &amp; PptxGenJS. No data is stored server-side.</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@6.0.1/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

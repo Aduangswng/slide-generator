@@ -1,0 +1,12 @@
+{
+  "name": "slide-generator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI slide deck generator (Gemini + reveal.js + PptxGenJS) on Netlify Functions",
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "dependencies": {
+    "@google/genai": "^2.18.0"
+  }
+}

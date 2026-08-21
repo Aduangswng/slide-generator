@@ -1,0 +1,298 @@
+:root {
+  --bg: #f7f7fb;
+  --panel-bg: #ffffff;
+  --text: #1c1c28;
+  --muted: #6b6b7b;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --border: #e2e2ea;
+  --error: #c0392b;
+  --error-bg: #fdecea;
+  --radius: 10px;
+  --max-width: 1100px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.app-header {
+  text-align: center;
+  padding: 2.5rem 1rem 1rem;
+}
+
+.app-header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+}
+
+.tagline {
+  color: var(--muted);
+  margin: 0;
+}
+
+main {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.required {
+  color: var(--error);
+}
+
+.optional {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+textarea,
+input[type="text"],
+select {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background: #fff;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input[type="range"] {
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+#generate-btn {
+  width: 100%;
+  padding: 0.8rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+#generate-btn:hover {
+  background: var(--accent-hover);
+}
+
+#generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px;
+}
+
+.secondary-btn:hover {
+  background: var(--bg);
+}
+
+.error-text {
+  color: var(--error);
+  background: var(--error-bg);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+#loading-view {
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 0 auto 1rem;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#error-view {
+  text-align: center;
+}
+
+#error-view .error-text {
+  margin-top: 0;
+}
+
+.result-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+#download-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.1rem;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+#download-btn:hover {
+  background: var(--accent-hover);
+}
+
+.result-panels {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.preview-panel,
+.edit-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.preview-panel h2,
+.edit-panel h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.reveal {
+  width: 100%;
+  height: 340px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.6rem;
+}
+
+.edit-list {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.edit-slide {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.edit-slide-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+.edit-slide input[type="text"],
+.edit-slide textarea {
+  margin-bottom: 0.5rem;
+}
+
+.edit-bullet-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.edit-bullet-row input {
+  flex: 1;
+}
+
+.remove-bullet-btn,
+.add-bullet-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  color: var(--muted);
+}
+
+.remove-bullet-btn:hover,
+.add-bullet-btn:hover {
+  background: var(--bg);
+}
+
+@media (max-width: 800px) {
+  .result-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .reveal {
+    height: 260px;
+  }
+}
