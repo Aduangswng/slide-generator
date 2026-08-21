@@ -16,6 +16,14 @@ const SLIDE_JSON_SCHEMA = {
   type: "object",
   properties: {
     title: { type: "string" },
+    theme: {
+      type: "object",
+      properties: {
+        primaryColor: { type: "string" },
+        accentColor: { type: "string" },
+      },
+      required: ["primaryColor", "accentColor"],
+    },
     slides: {
       type: "array",
       items: {
@@ -31,8 +39,52 @@ const SLIDE_JSON_SCHEMA = {
       },
     },
   },
-  required: ["title", "slides"],
+  required: ["title", "theme", "slides"],
 };
+
+// Used whenever Gemini's color choice is missing or fails the contrast check below.
+const DEFAULT_THEME = { primaryColor: "#1F2937", accentColor: "#4F46E5" };
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function relativeLuminance(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  const [rl, gl, bl] = [r, g, b].map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rl + 0.7152 * gl + 0.0722 * bl;
+}
+
+function contrastRatio(hexA, hexB) {
+  const a = relativeLuminance(hexA);
+  const b = relativeLuminance(hexB);
+  const lighter = Math.max(a, b);
+  const darker = Math.min(a, b);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// primaryColor is used as text on white (needs strong contrast); accentColor is
+// used as a background behind white heading text (slightly more lenient, since
+// it's large bold text - WCAG's "large text" AA threshold is 3:1). Falls back
+// to a safe default per-color rather than failing the whole generation, since
+// an unreadable color choice shouldn't cost the user a retry.
+function sanitizeTheme(theme) {
+  const t = theme && typeof theme === "object" ? theme : {};
+  const primaryColor =
+    HEX_COLOR_RE.test(t.primaryColor) && contrastRatio(t.primaryColor, "#FFFFFF") >= 4.5
+      ? t.primaryColor
+      : DEFAULT_THEME.primaryColor;
+  const accentColor =
+    HEX_COLOR_RE.test(t.accentColor) && contrastRatio(t.accentColor, "#FFFFFF") >= 3.5
+      ? t.accentColor
+      : DEFAULT_THEME.accentColor;
+  return { primaryColor, accentColor };
+}
 
 // Simple in-memory per-IP throttle. Resets whenever the function's container
 // recycles - good enough for MVP abuse protection, no external store needed.
@@ -116,6 +168,14 @@ Rules:
 - Use type "content" for normal slides, with a "heading" and 2-5 concise "bullets".
 - Every heading and bullet must be non-empty, specific to the topic, and written in the requested tone.
 - Optionally add short speaker "notes" to content slides.
+- Also choose a "theme" with two hex colors that visually fit the topic's subject and mood (e.g. a
+  nature topic could use forest greens, a finance topic navy and gold, a technology topic blue and
+  cyan, a health topic teal). Provide:
+  - "primaryColor": a dark, muted color used as heading text on a white background - it must be
+    dark enough to read clearly on white, so avoid pastel or light colors.
+  - "accentColor": a bold, saturated color used as a full slide background behind white text - it
+    must be dark/saturated enough for white text to stay clearly readable on top of it, so avoid
+    pale, light, or washed-out colors (for example, prefer a deep teal over a pale mint).
 - Return ONLY valid JSON matching the schema. No markdown fences, no explanations.${strictNote}`;
 }
 
@@ -188,6 +248,7 @@ async function callGemini(ai, params, strict) {
     return { error: shapeError };
   }
 
+  deck.theme = sanitizeTheme(deck.theme);
   return { deck };
 }
 

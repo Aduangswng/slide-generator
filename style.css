@@ -212,8 +212,8 @@ button {
   padding: 1rem;
 }
 
-.preview-panel h2,
-.edit-panel h2 {
+.preview-panel > h2,
+.edit-panel > h2 {
   margin-top: 0;
   font-size: 1.1rem;
 }

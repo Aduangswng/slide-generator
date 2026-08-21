@@ -139,26 +139,49 @@
 
   // ---- Rendering the reveal.js preview (DOM built via textContent - no innerHTML of AI text) ----
 
+  const DEFAULT_THEME = { primaryColor: "#1F2937", accentColor: "#4F46E5" };
+
   function buildSlideSection(slide) {
     const section = document.createElement("section");
+    const theme = (deck && deck.theme) || DEFAULT_THEME;
+
+    if (slide.type === "title" || slide.type === "section") {
+      // reveal.js's own per-slide background layer, not a plain CSS background -
+      // it stays correctly positioned through reveal's scale/transform wrapper.
+      section.setAttribute("data-background-color", theme.accentColor);
+    }
 
     if (slide.type === "title") {
       const h1 = document.createElement("h1");
       h1.textContent = slide.heading || "";
+      h1.style.color = "#FFFFFF";
       section.appendChild(h1);
       if (slide.subheading) {
         const h3 = document.createElement("h3");
         h3.textContent = slide.subheading;
+        h3.style.color = "#FFFFFF";
         section.appendChild(h3);
       }
     } else if (slide.type === "section") {
       const h2 = document.createElement("h2");
       h2.textContent = slide.heading || "";
+      h2.style.color = "#FFFFFF";
       section.appendChild(h2);
     } else {
       const h2 = document.createElement("h2");
       h2.textContent = slide.heading || "";
+      h2.style.color = theme.primaryColor;
       section.appendChild(h2);
+
+      // A separate fixed-size bar rather than a border on the heading itself -
+      // giving the h2 a non-default display type broke reveal.js's own
+      // responsive font-size calculation and shrank the heading drastically.
+      const accentBar = document.createElement("div");
+      accentBar.style.width = "3em";
+      accentBar.style.height = "0.08em";
+      accentBar.style.background = theme.accentColor;
+      accentBar.style.margin = "0.2em 0 0.5em";
+      section.appendChild(accentBar);
 
       if (Array.isArray(slide.bullets) && slide.bullets.length) {
         const ul = document.createElement("ul");
@@ -327,10 +350,15 @@
     pptx.defineLayout({ name: "WIDE", width: 13.33, height: 7.5 });
     pptx.layout = "WIDE";
 
+    const theme = deck.theme || DEFAULT_THEME;
+    const primaryHex = theme.primaryColor.replace("#", "");
+    const accentHex = theme.accentColor.replace("#", "");
+
     deck.slides.forEach((slide) => {
       const pSlide = pptx.addSlide();
 
       if (slide.type === "title") {
+        pSlide.background = { color: accentHex };
         pSlide.addText(slide.heading || "", {
           x: 0.5,
           y: 2.6,
@@ -339,6 +367,7 @@
           align: "center",
           fontSize: 40,
           bold: true,
+          color: "FFFFFF",
         });
         if (slide.subheading) {
           pSlide.addText(slide.subheading, {
@@ -348,11 +377,11 @@
             h: 0.8,
             align: "center",
             fontSize: 20,
-            color: "666666",
+            color: "FFFFFF",
           });
         }
       } else if (slide.type === "section") {
-        pSlide.background = { color: "4F46E5" };
+        pSlide.background = { color: accentHex };
         pSlide.addText(slide.heading || "", {
           x: 0.5,
           y: 3.0,
@@ -371,6 +400,15 @@
           h: 0.9,
           fontSize: 28,
           bold: true,
+          color: primaryHex,
+        });
+        pSlide.addShape(pptx.ShapeType.rect, {
+          x: 0.5,
+          y: 1.25,
+          w: 2.2,
+          h: 0.06,
+          fill: { color: accentHex },
+          line: { color: accentHex },
         });
 
         if (Array.isArray(slide.bullets) && slide.bullets.length) {
@@ -379,9 +417,9 @@
             .map((b) => ({ text: b, options: { bullet: true, breakLine: true } }));
           pSlide.addText(bulletItems, {
             x: 0.7,
-            y: 1.5,
+            y: 1.6,
             w: 11.9,
-            h: 5.3,
+            h: 5.2,
             fontSize: 18,
             valign: "top",
           });
