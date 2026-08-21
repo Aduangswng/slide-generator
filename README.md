@@ -7,8 +7,10 @@ free tier — no database, no paid services.
 ## How it works
 
 - `index.html` / `style.css` / `app.js` — the whole frontend, plain HTML/CSS/vanilla JS (no build step).
-- `netlify/functions/generate-slides.js` — the only server-side code. It holds the secret Gemini API
-  key and calls Gemini on the browser's behalf, so the key never reaches the client.
+- `netlify/functions/generate-slides.mjs` — the only server-side code. It holds the secret Gemini
+  API key and calls Gemini on the browser's behalf, so the key never reaches the client. It's a
+  Netlify Functions v2 streaming function (60s execution budget instead of the 10s default) since
+  a full deck generation from Gemini routinely takes 15-30s.
 - Slide preview uses [reveal.js](https://revealjs.com/) (via CDN). Export uses
   [PptxGenJS](https://gitbrent.github.io/PptxGenJS/) (via CDN) — the `.pptx` file is built entirely
   in the browser from the same slide JSON you see in the editor.
@@ -19,8 +21,8 @@ free tier — no database, no paid services.
 2. Sign in with a Google account and click **Create API key**.
 3. Copy the key — you'll need it in step 3 below. Keep it secret; do not commit it anywhere.
 
-The function defaults to the `gemini-2.5-flash` model, which is free-tier eligible. If Google
-renames or retires it, update `MODEL_NAME` in `netlify/functions/generate-slides.js` — check
+The function defaults to the `gemini-3.6-flash` model, which is free-tier eligible. If Google
+renames or retires it, update `MODEL_NAME` in `netlify/functions/generate-slides.mjs` — check
 [ai.google.dev/gemini-api/docs/pricing](https://ai.google.dev/gemini-api/docs/pricing) for the
 current free-tier model list.
 
@@ -47,7 +49,7 @@ GEMINI_API_KEY=your-key-here
 netlify dev
 ```
 
-This serves `index.html` and runs `generate-slides.js` as a local function, so the whole flow
+This serves `index.html` and runs `generate-slides.mjs` as a local function, so the whole flow
 (including the AI call) works exactly like production. Open the URL it prints (usually
 `http://localhost:8888`).
 
