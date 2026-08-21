@@ -149,6 +149,13 @@ function validateDeckShape(deck, expectedSlideCount) {
   return null;
 }
 
+// Measured ~110 output tokens/slide for a real deck (title + JSON overhead
+// included). 200/slide plus a flat buffer leaves headroom without letting an
+// unusually verbose response run long enough to threaten Netlify's 60s cap.
+function estimateMaxOutputTokens(slideCount) {
+  return Math.min(6000, slideCount * 200 + 300);
+}
+
 async function callGemini(ai, params, strict) {
   const interaction = await ai.interactions.create({
     model: MODEL_NAME,
@@ -160,8 +167,11 @@ async function callGemini(ai, params, strict) {
     },
     // Extended reasoning adds significant latency and isn't needed for this
     // structured-output task - keep it off to stay well inside the 60s budget.
+    // Capping output tokens bounds worst-case generation time too, protecting
+    // against an unusually verbose response running past the timeout.
     generation_config: {
       thinking_level: "minimal",
+      max_output_tokens: estimateMaxOutputTokens(params.slideCount),
     },
   });
 
