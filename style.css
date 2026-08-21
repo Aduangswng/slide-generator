@@ -218,7 +218,7 @@ button {
   font-size: 1.1rem;
 }
 
-.reveal {
+.preview-panel .reveal {
   width: 100%;
   height: 340px;
   border: 1px solid var(--border);

@@ -1,8 +1,10 @@
-const { GoogleGenAI } = require("@google/genai");
+import { GoogleGenAI } from "@google/genai";
 
 // Current free-tier-eligible Flash model as of Aug 2026 (per ai.google.dev/gemini-api/docs).
-// Swap this if Google renames/retires it - check ai.google.dev/gemini-api/docs/pricing first.
-const MODEL_NAME = "gemini-2.5-flash";
+// gemini-2.5-flash is retired for new API keys as of this writing - Google's own 404
+// response points to this replacement. Swap here if Google renames/retires it again -
+// check ai.google.dev/gemini-api/docs/pricing first.
+const MODEL_NAME = "gemini-3.6-flash";
 
 const MAX_TOPIC_LENGTH = 500;
 const MAX_AUDIENCE_LENGTH = 200;
@@ -54,12 +56,24 @@ function checkRateLimit(ip) {
   return true;
 }
 
-function jsonResponse(statusCode, body) {
-  return {
-    statusCode,
+// Returning a ReadableStream body classifies this as a Netlify "streaming
+// function", which gets a 60s execution budget instead of the platform's
+// 10s default for buffered functions - real Gemini calls for a full deck
+// routinely take 15-30s. We don't stream tokens progressively; the whole
+// JSON payload is written as one chunk once the Gemini call resolves.
+function jsonResponse(status, body) {
+  const encoder = new TextEncoder();
+  const payload = encoder.encode(JSON.stringify(body));
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(payload);
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    status,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  };
+  });
 }
 
 function validateInput(body) {
@@ -135,7 +149,7 @@ function validateDeckShape(deck, expectedSlideCount) {
   return null;
 }
 
-async function callGemini(ai, input, params, strict) {
+async function callGemini(ai, params, strict) {
   const interaction = await ai.interactions.create({
     model: MODEL_NAME,
     input: buildPrompt(params, strict),
@@ -143,6 +157,11 @@ async function callGemini(ai, input, params, strict) {
       type: "text",
       mime_type: "application/json",
       schema: SLIDE_JSON_SCHEMA,
+    },
+    // Extended reasoning adds significant latency and isn't needed for this
+    // structured-output task - keep it off to stay well inside the 60s budget.
+    generation_config: {
+      thinking_level: "minimal",
     },
   });
 
@@ -162,15 +181,12 @@ async function callGemini(ai, input, params, strict) {
   return { deck };
 }
 
-exports.handler = async (event, context) => {
-  if (event.httpMethod !== "POST") {
+export default async (req, context) => {
+  if (req.method !== "POST") {
     return jsonResponse(405, { error: "Method not allowed." });
   }
 
-  const ip =
-    event.headers["x-nf-client-connection-ip"] ||
-    context.clientContext?.ip ||
-    "unknown";
+  const ip = context.ip || "unknown";
 
   if (!checkRateLimit(ip)) {
     return jsonResponse(429, {
@@ -186,7 +202,7 @@ exports.handler = async (event, context) => {
 
   let body;
   try {
-    body = JSON.parse(event.body || "{}");
+    body = await req.json();
   } catch {
     return jsonResponse(400, { error: "Malformed request body." });
   }
@@ -199,9 +215,9 @@ exports.handler = async (event, context) => {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   try {
-    let result = await callGemini(ai, body, params, false);
+    let result = await callGemini(ai, params, false);
     if (result.error) {
-      result = await callGemini(ai, body, params, true);
+      result = await callGemini(ai, params, true);
     }
     if (result.error) {
       return jsonResponse(502, {
@@ -210,6 +226,7 @@ exports.handler = async (event, context) => {
     }
     return jsonResponse(200, result.deck);
   } catch (err) {
+    console.error("Gemini call failed:", err);
     const message = String(err && err.message ? err.message : err);
     if (/quota|rate.?limit|429/i.test(message)) {
       return jsonResponse(429, {

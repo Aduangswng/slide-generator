@@ -90,8 +90,10 @@
 
       deck = data;
       stopLoading();
-      renderResult();
+      // Reveal.js measures its container's real size at init time, so it must
+      // already be visible (not [hidden]) before renderResult() initializes it.
       showView(resultView);
+      renderResult();
     } catch (err) {
       stopLoading();
       showError(
@@ -195,8 +197,9 @@
         progress: true,
         hash: false,
         keyboard: true,
-        width: "100%",
-        height: "100%",
+        // Leave width/height at reveal's defaults (960x700 logical canvas) so
+        // it auto-scales via CSS transform to fit the actual container size -
+        // passing "100%" here disables that scaling and text overflows.
       });
       revealDeck.initialize();
     }
