@@ -29,12 +29,16 @@ const SLIDE_JSON_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          type: { type: "string", enum: ["title", "content", "section"] },
+          type: { type: "string", enum: ["title", "content", "section", "stat", "quote"] },
           heading: { type: "string" },
           subheading: { type: "string" },
           bullets: { type: "array", items: { type: "string" } },
           notes: { type: "string" },
           icon: { type: "string" },
+          statValue: { type: "string" },
+          statLabel: { type: "string" },
+          quoteText: { type: "string" },
+          quoteAttribution: { type: "string" },
         },
         required: ["type", "heading", "icon"],
       },
@@ -178,8 +182,23 @@ Target slide count: ${slideCount} (include exactly this many slides, including t
 Rules:
 - The first slide must have type "title" with a compelling "heading" and an optional "subheading".
 - Use type "section" sparingly, only to divide the deck into major parts.
-- Use type "content" for normal slides, with a "heading" and 2-5 concise "bullets".
-- Every heading and bullet must be non-empty, specific to the topic, and written in the requested tone.
+- Use type "content" for normal slides, with a "heading" and 2-5 concise "bullets". This should
+  still be the majority of slides in the deck.
+- Use type "stat" for at most 1-2 slides, only when a single striking number or statistic is the
+  most impactful way to make a point. Fill "statValue" with the number itself, kept very short
+  (e.g. "87%", "3.2 billion", "10x") and "statLabel" with a short sentence explaining what it
+  means - use the field named "statLabel" for this, NOT "subheading". Keep "heading" to a short
+  2-4 word category label (e.g. "Climate Impact"), not a sentence.
+- Use type "quote" for at most 1 slide, only if it genuinely fits the topic - never force one in.
+  Fill "quoteText" with the quote and "quoteAttribution" with its source - use the field named
+  "quoteAttribution" for this, NOT "subheading". Only attribute a quote to a specific real named
+  person if you are confident it is a real, accurately-attributed quote - never invent a quote and
+  attribute it to a real person. If you are not confident, either phrase it as a general,
+  well-known saying without naming a specific person, or omit "quoteAttribution" entirely. Keep
+  "heading" to a short label (e.g. "In Their Words").
+- The "subheading" field only applies to the "title" slide. Do not use it on any other slide type.
+- Every heading, bullet, stat, and quote must be non-empty, specific to the topic, and written in
+  the requested tone.
 - Optionally add short speaker "notes" to content slides.
 - Also choose a "theme" with two hex colors that visually fit the topic's subject and mood (e.g. a
   nature topic could use forest greens, a finance topic navy and gold, a technology topic blue and
@@ -207,7 +226,7 @@ function validateDeckShape(deck, expectedSlideCount) {
 
   for (const [i, slide] of deck.slides.entries()) {
     if (!slide || typeof slide !== "object") return `Slide ${i + 1} is not an object.`;
-    if (!["title", "content", "section"].includes(slide.type)) {
+    if (!["title", "content", "section", "stat", "quote"].includes(slide.type)) {
       return `Slide ${i + 1} has an invalid type.`;
     }
     if (typeof slide.heading !== "string" || !slide.heading.trim()) {

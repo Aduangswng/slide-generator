@@ -145,11 +145,26 @@
     return slide.icon ? `${slide.icon} ${slide.heading || ""}` : slide.heading || "";
   }
 
+  // Mixes a hex color toward white - used for a light card background that
+  // stays readable under dark text regardless of how saturated accentColor is,
+  // since it's only ever moving *toward* white, never away from it. Returns a
+  // hex string (not rgb()) so the same value works as both a CSS color and a
+  // PptxGenJS fill color.
+  function lightenHex(hex, amount) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255;
+    const g = (n >> 8) & 255;
+    const b = n & 255;
+    const mix = (c) => Math.round(c + (255 - c) * amount);
+    const toHex = (c) => c.toString(16).padStart(2, "0");
+    return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+  }
+
   function buildSlideSection(slide) {
     const section = document.createElement("section");
     const theme = (deck && deck.theme) || DEFAULT_THEME;
 
-    if (slide.type === "title" || slide.type === "section") {
+    if (slide.type === "title" || slide.type === "section" || slide.type === "quote") {
       // reveal.js's own per-slide background layer, not a plain CSS background -
       // it stays correctly positioned through reveal's scale/transform wrapper.
       section.setAttribute("data-background-color", theme.accentColor);
@@ -179,6 +194,69 @@
       h2.textContent = headingText(slide);
       h2.style.color = "#FFFFFF";
       section.appendChild(h2);
+    } else if (slide.type === "stat") {
+      const label = document.createElement("div");
+      label.textContent = headingText(slide);
+      label.style.color = theme.primaryColor;
+      label.style.fontSize = "0.6em";
+      label.style.fontWeight = "600";
+      label.style.textTransform = "uppercase";
+      label.style.letterSpacing = "0.08em";
+      section.appendChild(label);
+
+      const value = document.createElement("div");
+      value.textContent = slide.statValue || "";
+      value.style.color = theme.accentColor;
+      value.style.fontFamily = "'Poppins', sans-serif";
+      value.style.fontWeight = "700";
+      value.style.fontSize = "2.4em";
+      value.style.lineHeight = "1.1";
+      value.style.margin = "0.15em 0";
+      section.appendChild(value);
+
+      // Gemini sometimes puts this supporting text under "subheading" despite
+      // the prompt naming "statLabel" explicitly - fall back rather than lose it.
+      const statLabelText = slide.statLabel || slide.subheading;
+      if (statLabelText) {
+        const statLabel = document.createElement("div");
+        statLabel.textContent = statLabelText;
+        statLabel.style.fontSize = "0.75em";
+        statLabel.style.maxWidth = "20em";
+        statLabel.style.marginLeft = "auto";
+        statLabel.style.marginRight = "auto";
+        section.appendChild(statLabel);
+      }
+    } else if (slide.type === "quote") {
+      const mark = document.createElement("div");
+      mark.textContent = "“";
+      mark.style.fontFamily = "'Poppins', sans-serif";
+      mark.style.fontSize = "2.5em";
+      mark.style.color = "#FFFFFF";
+      mark.style.opacity = "0.6";
+      mark.style.lineHeight = "0.5";
+      section.appendChild(mark);
+
+      const quote = document.createElement("div");
+      quote.textContent = slide.quoteText || "";
+      quote.style.color = "#FFFFFF";
+      quote.style.fontStyle = "italic";
+      quote.style.fontSize = "1.15em";
+      quote.style.maxWidth = "24em";
+      quote.style.marginLeft = "auto";
+      quote.style.marginRight = "auto";
+      section.appendChild(quote);
+
+      // Same "subheading" fallback as the stat layout above.
+      const attributionText = slide.quoteAttribution || slide.subheading;
+      if (attributionText) {
+        const attribution = document.createElement("div");
+        attribution.textContent = `— ${attributionText}`;
+        attribution.style.color = "#FFFFFF";
+        attribution.style.opacity = "0.85";
+        attribution.style.fontSize = "0.7em";
+        attribution.style.marginTop = "0.6em";
+        section.appendChild(attribution);
+      }
     } else {
       const h2 = document.createElement("h2");
       h2.textContent = headingText(slide);
@@ -196,13 +274,39 @@
       section.appendChild(accentBar);
 
       if (Array.isArray(slide.bullets) && slide.bullets.length) {
-        const ul = document.createElement("ul");
+        const bulletsWrap = document.createElement("div");
+        bulletsWrap.style.textAlign = "left";
+        bulletsWrap.style.maxWidth = "26em";
+        bulletsWrap.style.marginLeft = "auto";
+        bulletsWrap.style.marginRight = "auto";
+
         slide.bullets.forEach((b) => {
-          const li = document.createElement("li");
-          li.textContent = b;
-          ul.appendChild(li);
+          const chip = document.createElement("div");
+          chip.style.display = "flex";
+          chip.style.alignItems = "flex-start";
+          chip.style.gap = "0.5em";
+          chip.style.background = lightenHex(theme.accentColor, 0.9);
+          chip.style.borderRadius = "0.4em";
+          chip.style.padding = "0.4em 0.7em";
+          chip.style.marginBottom = "0.35em";
+          chip.style.fontSize = "0.75em";
+
+          const dot = document.createElement("span");
+          dot.textContent = "●";
+          dot.style.color = theme.accentColor;
+          dot.style.fontSize = "0.6em";
+          dot.style.marginTop = "0.4em";
+          dot.style.flexShrink = "0";
+
+          const text = document.createElement("span");
+          text.textContent = b;
+
+          chip.appendChild(dot);
+          chip.appendChild(text);
+          bulletsWrap.appendChild(chip);
         });
-        section.appendChild(ul);
+
+        section.appendChild(bulletsWrap);
       }
     }
 
@@ -222,7 +326,6 @@
     // textContent, not innerHTML - even if a color value were ever malformed,
     // this can only produce invalid/ignored CSS, never executable markup.
     styleTag.textContent = `
-      .reveal .slides li::marker { color: ${theme.accentColor}; }
       .reveal .progress { color: ${theme.accentColor}; }
     `;
   }
@@ -297,6 +400,52 @@
         renderPreview();
       });
       card.appendChild(subInput);
+    }
+
+    if (slide.type === "stat") {
+      const valueInput = document.createElement("input");
+      valueInput.type = "text";
+      valueInput.value = slide.statValue || "";
+      valueInput.placeholder = "Stat value (e.g. 87%)";
+      valueInput.addEventListener("input", () => {
+        slide.statValue = valueInput.value;
+        renderPreview();
+      });
+      card.appendChild(valueInput);
+
+      const labelInput = document.createElement("input");
+      labelInput.type = "text";
+      // Gemini sometimes returns this under "subheading" instead - see the
+      // matching fallback in buildSlideSection/exportPptx.
+      labelInput.value = slide.statLabel || slide.subheading || "";
+      labelInput.placeholder = "Stat label";
+      labelInput.addEventListener("input", () => {
+        slide.statLabel = labelInput.value;
+        renderPreview();
+      });
+      card.appendChild(labelInput);
+    }
+
+    if (slide.type === "quote") {
+      const quoteInput = document.createElement("textarea");
+      quoteInput.rows = 2;
+      quoteInput.value = slide.quoteText || "";
+      quoteInput.placeholder = "Quote text";
+      quoteInput.addEventListener("input", () => {
+        slide.quoteText = quoteInput.value;
+        renderPreview();
+      });
+      card.appendChild(quoteInput);
+
+      const attributionInput = document.createElement("input");
+      attributionInput.type = "text";
+      attributionInput.value = slide.quoteAttribution || slide.subheading || "";
+      attributionInput.placeholder = "Attribution (optional)";
+      attributionInput.addEventListener("input", () => {
+        slide.quoteAttribution = attributionInput.value;
+        renderPreview();
+      });
+      card.appendChild(attributionInput);
     }
 
     if (slide.type === "content") {
@@ -420,6 +569,70 @@
           color: "FFFFFF",
           fontFace: "Poppins",
         });
+      } else if (slide.type === "stat") {
+        pSlide.addText(heading, {
+          x: 0.5,
+          y: 1.8,
+          w: 12.33,
+          h: 0.6,
+          align: "center",
+          fontSize: 16,
+          bold: true,
+          color: primaryHex,
+          fontFace: "Inter",
+          charSpacing: 2,
+        });
+        pSlide.addText(slide.statValue || "", {
+          x: 0.5,
+          y: 2.5,
+          w: 12.33,
+          h: 1.8,
+          align: "center",
+          fontSize: 72,
+          bold: true,
+          color: accentHex,
+          fontFace: "Poppins",
+        });
+        const statLabelText = slide.statLabel || slide.subheading;
+        if (statLabelText) {
+          pSlide.addText(statLabelText, {
+            x: 2.67,
+            y: 4.5,
+            w: 8,
+            h: 1,
+            align: "center",
+            fontSize: 18,
+            color: "374151",
+            fontFace: "Inter",
+          });
+        }
+      } else if (slide.type === "quote") {
+        pSlide.background = { color: accentHex };
+        pSlide.addText(slide.quoteText || "", {
+          x: 1.67,
+          y: 2.4,
+          w: 10,
+          h: 2.2,
+          align: "center",
+          valign: "middle",
+          italic: true,
+          fontSize: 28,
+          color: "FFFFFF",
+          fontFace: "Inter",
+        });
+        const attributionText = slide.quoteAttribution || slide.subheading;
+        if (attributionText) {
+          pSlide.addText(`— ${attributionText}`, {
+            x: 1.67,
+            y: 4.7,
+            w: 10,
+            h: 0.6,
+            align: "center",
+            fontSize: 16,
+            color: "FFFFFF",
+            fontFace: "Inter",
+          });
+        }
       } else {
         // Full-height edge stripe, matching the reveal.js preview's left border.
         pSlide.addShape(pptx.ShapeType.rect, {
@@ -450,14 +663,30 @@
         });
 
         if (Array.isArray(slide.bullets) && slide.bullets.length) {
-          const bulletItems = slide.bullets
-            .filter((b) => b && b.trim())
-            .map((b) => ({ text: b, options: { bullet: true, breakLine: true } }));
-          pSlide.addText(bulletItems, {
-            x: 0.8,
+          const validBullets = slide.bullets.filter((b) => b && b.trim());
+          // A single card panel behind the whole list, rather than one shape
+          // per bullet - keeps the export simple while still giving the list
+          // a visually distinct, structured block instead of bare text.
+          pSlide.addShape(pptx.ShapeType.roundRect, {
+            x: 0.6,
             y: 1.6,
             w: 11.8,
-            h: 5.2,
+            h: Math.min(5.2, 0.6 + validBullets.length * 0.75),
+            fill: { color: lightenHex(theme.accentColor, 0.92) },
+            line: { color: lightenHex(theme.accentColor, 0.92) },
+            rectRadius: 0.1,
+          });
+          const bulletItems = validBullets.map((b) => ({
+            text: b,
+            // PptxGenJS bullets don't support a marker-only color separate
+            // from the text - accepting a plain dark bullet+text here.
+            options: { bullet: { characterCode: "25CF" }, breakLine: true },
+          }));
+          pSlide.addText(bulletItems, {
+            x: 0.9,
+            y: 1.8,
+            w: 11.2,
+            h: Math.min(4.8, 0.4 + validBullets.length * 0.75),
             fontSize: 18,
             valign: "top",
             fontFace: "Inter",
