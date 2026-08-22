@@ -141,6 +141,10 @@
 
   const DEFAULT_THEME = { primaryColor: "#1F2937", accentColor: "#4F46E5" };
 
+  function headingText(slide) {
+    return slide.icon ? `${slide.icon} ${slide.heading || ""}` : slide.heading || "";
+  }
+
   function buildSlideSection(slide) {
     const section = document.createElement("section");
     const theme = (deck && deck.theme) || DEFAULT_THEME;
@@ -151,9 +155,17 @@
       section.setAttribute("data-background-color", theme.accentColor);
     }
 
+    if (slide.type === "content") {
+      // A full-height edge stripe rather than a positioned overlay div - simple
+      // box-model properties transform correctly with reveal's scaling, and
+      // this avoids repeating the display/font-size interaction found earlier.
+      section.style.borderLeft = `0.1em solid ${theme.accentColor}`;
+      section.style.paddingLeft = "0.6em";
+    }
+
     if (slide.type === "title") {
       const h1 = document.createElement("h1");
-      h1.textContent = slide.heading || "";
+      h1.textContent = headingText(slide);
       h1.style.color = "#FFFFFF";
       section.appendChild(h1);
       if (slide.subheading) {
@@ -164,12 +176,12 @@
       }
     } else if (slide.type === "section") {
       const h2 = document.createElement("h2");
-      h2.textContent = slide.heading || "";
+      h2.textContent = headingText(slide);
       h2.style.color = "#FFFFFF";
       section.appendChild(h2);
     } else {
       const h2 = document.createElement("h2");
-      h2.textContent = slide.heading || "";
+      h2.textContent = headingText(slide);
       h2.style.color = theme.primaryColor;
       section.appendChild(h2);
 
@@ -204,11 +216,23 @@
     return section;
   }
 
+  function applyThemeStyle() {
+    const theme = (deck && deck.theme) || DEFAULT_THEME;
+    const styleTag = document.getElementById("theme-style");
+    // textContent, not innerHTML - even if a color value were ever malformed,
+    // this can only produce invalid/ignored CSS, never executable markup.
+    styleTag.textContent = `
+      .reveal .slides li::marker { color: ${theme.accentColor}; }
+      .reveal .progress { color: ${theme.accentColor}; }
+    `;
+  }
+
   function renderPreview() {
     slidesContainer.innerHTML = "";
     deck.slides.forEach((slide) => {
       slidesContainer.appendChild(buildSlideSection(slide));
     });
+    applyThemeStyle();
 
     if (revealDeck) {
       revealDeck.sync();
@@ -356,10 +380,11 @@
 
     deck.slides.forEach((slide) => {
       const pSlide = pptx.addSlide();
+      const heading = headingText(slide);
 
       if (slide.type === "title") {
         pSlide.background = { color: accentHex };
-        pSlide.addText(slide.heading || "", {
+        pSlide.addText(heading, {
           x: 0.5,
           y: 2.6,
           w: 12.33,
@@ -368,6 +393,7 @@
           fontSize: 40,
           bold: true,
           color: "FFFFFF",
+          fontFace: "Poppins",
         });
         if (slide.subheading) {
           pSlide.addText(slide.subheading, {
@@ -378,11 +404,12 @@
             align: "center",
             fontSize: 20,
             color: "FFFFFF",
+            fontFace: "Inter",
           });
         }
       } else if (slide.type === "section") {
         pSlide.background = { color: accentHex };
-        pSlide.addText(slide.heading || "", {
+        pSlide.addText(heading, {
           x: 0.5,
           y: 3.0,
           w: 12.33,
@@ -391,19 +418,30 @@
           fontSize: 34,
           bold: true,
           color: "FFFFFF",
+          fontFace: "Poppins",
         });
       } else {
-        pSlide.addText(slide.heading || "", {
-          x: 0.5,
+        // Full-height edge stripe, matching the reveal.js preview's left border.
+        pSlide.addShape(pptx.ShapeType.rect, {
+          x: 0,
+          y: 0,
+          w: 0.12,
+          h: 7.5,
+          fill: { color: accentHex },
+          line: { color: accentHex },
+        });
+        pSlide.addText(heading, {
+          x: 0.6,
           y: 0.4,
-          w: 12.33,
+          w: 12.23,
           h: 0.9,
           fontSize: 28,
           bold: true,
           color: primaryHex,
+          fontFace: "Poppins",
         });
         pSlide.addShape(pptx.ShapeType.rect, {
-          x: 0.5,
+          x: 0.6,
           y: 1.25,
           w: 2.2,
           h: 0.06,
@@ -416,12 +454,13 @@
             .filter((b) => b && b.trim())
             .map((b) => ({ text: b, options: { bullet: true, breakLine: true } }));
           pSlide.addText(bulletItems, {
-            x: 0.7,
+            x: 0.8,
             y: 1.6,
-            w: 11.9,
+            w: 11.8,
             h: 5.2,
             fontSize: 18,
             valign: "top",
+            fontFace: "Inter",
           });
         }
       }

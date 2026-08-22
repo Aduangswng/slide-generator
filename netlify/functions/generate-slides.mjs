@@ -34,8 +34,9 @@ const SLIDE_JSON_SCHEMA = {
           subheading: { type: "string" },
           bullets: { type: "array", items: { type: "string" } },
           notes: { type: "string" },
+          icon: { type: "string" },
         },
-        required: ["type", "heading"],
+        required: ["type", "heading", "icon"],
       },
     },
   },
@@ -84,6 +85,18 @@ function sanitizeTheme(theme) {
       ? t.accentColor
       : DEFAULT_THEME.accentColor;
   return { primaryColor, accentColor };
+}
+
+// Icons are purely decorative, so an invalid one is just dropped rather than
+// replaced with a fallback - unlike colors, a missing icon costs nothing.
+// The length cap guards against the model returning a whole word/phrase
+// instead of an emoji (most emoji, including multi-codepoint ones like
+// flags or skin-tone variants, fit within a handful of UTF-16 code units).
+function sanitizeIcon(icon) {
+  if (typeof icon !== "string") return undefined;
+  const trimmed = icon.trim();
+  if (!trimmed || trimmed.length > 8) return undefined;
+  return trimmed;
 }
 
 // Simple in-memory per-IP throttle. Resets whenever the function's container
@@ -176,6 +189,10 @@ Rules:
   - "accentColor": a bold, saturated color used as a full slide background behind white text - it
     must be dark/saturated enough for white text to stay clearly readable on top of it, so avoid
     pale, light, or washed-out colors (for example, prefer a deep teal over a pale mint).
+- Give every slide a single "icon" that is one emoji character fitting that specific slide's
+  content (not just the overall topic) - e.g. a slide about ocean warming could use a wave or
+  thermometer emoji, a slide about government policy could use a scroll or bank emoji. Pick a
+  different, specifically relevant emoji per slide rather than repeating the same one throughout.
 - Return ONLY valid JSON matching the schema. No markdown fences, no explanations.${strictNote}`;
 }
 
@@ -249,6 +266,9 @@ async function callGemini(ai, params, strict) {
   }
 
   deck.theme = sanitizeTheme(deck.theme);
+  for (const slide of deck.slides) {
+    slide.icon = sanitizeIcon(slide.icon);
+  }
   return { deck };
 }
 
