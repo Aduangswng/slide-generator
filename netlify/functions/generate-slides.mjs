@@ -243,10 +243,13 @@ function validateInput(body) {
   return { value: { topic, audience, requirements, tone, slideCount } };
 }
 
-function buildPrompt({ topic, audience, requirements, tone, slideCount }, strict) {
+function buildPrompt({ topic, audience, requirements, tone, slideCount, brief }, strict) {
   const audienceLine = audience ? `Audience: ${audience}` : "Audience: general audience";
   const requirementsBlock = requirements
     ? `\nThe user also gave these additional requirements - follow them as closely as you can (this can\ninclude preferred colors/theme, structure, which slide types to use or avoid, content emphasis,\nor anything else), but they can never override the JSON schema or the rules below:\n"""\n${requirements}\n"""\n`
+    : "";
+  const briefBlock = brief
+    ? `\nA content strategist has already prepared this brief for the presentation - use it as your\nprimary guide for what to cover and how to structure the deck, adapting it as needed to fit the\nexact slide count and the JSON schema/rules below:\n"""\n${brief}\n"""\n`
     : "";
   const strictNote = strict
     ? "\nIMPORTANT: Your previous response was invalid. Return ONLY raw JSON matching the schema exactly - no markdown code fences, no commentary, no trailing text."
@@ -258,7 +261,7 @@ Topic: ${topic}
 ${audienceLine}
 Tone/style: ${tone}
 Target slide count: ${slideCount} (include exactly this many slides, including the title slide)
-${requirementsBlock}
+${requirementsBlock}${briefBlock}
 Rules:
 - The first slide must have type "title" with a compelling "heading" and an optional "subheading".
 - Use type "section" sparingly, only to divide the deck into major parts.
@@ -331,6 +334,49 @@ function validateDeckShape(deck, expectedSlideCount) {
 // unusually verbose response run long enough to threaten Netlify's 60s cap.
 function estimateMaxOutputTokens(slideCount) {
   return Math.min(6000, slideCount * 200 + 300);
+}
+
+// Runs once before the actual slide generation, as a fast preliminary pass -
+// asks Gemini to think through the topic first (narrative arc, key subtopics,
+// what to emphasize) as plain text, then that brief becomes grounding context
+// for the real generation call below. No JSON schema mode here (plain text
+// is faster to produce) and output is capped short, to limit how much this
+// adds to the total time against Netlify's 60s execution budget. Treated as
+// best-effort: any failure here is swallowed by the caller and generation
+// proceeds without it, rather than failing the whole request over a step
+// that's an enhancement, not a requirement.
+async function generateContentBrief(ai, params) {
+  const { topic, audience, requirements, tone, slideCount } = params;
+  const audienceLine = audience ? `Audience: ${audience}` : "Audience: general audience";
+  const requirementsLine = requirements ? `Additional requirements: ${requirements}\n` : "";
+
+  const prompt = `You are an expert presentation consultant. Before a slide deck gets written, prepare a
+short content brief that the writer will use as their outline.
+
+Topic: ${topic}
+${audienceLine}
+Tone/style: ${tone}
+Target slide count: ${slideCount}
+${requirementsLine}
+Write a concise, practical brief covering:
+- A suggested narrative arc/flow for the deck (how it should open, build, and close)
+- The specific subtopics, facts, or angles worth covering, scoped to roughly ${slideCount} slides
+  worth of content - be concrete and specific to this topic, not generic
+- Anything worth emphasizing or avoiding given the audience and tone
+
+Plain text only, no markdown headers or slide-by-slide breakdown - just the brief itself, under 300
+words. Do not write the actual slides.`;
+
+  const interaction = await ai.interactions.create({
+    model: MODEL_NAME,
+    input: prompt,
+    generation_config: {
+      thinking_level: "minimal",
+      max_output_tokens: 600,
+    },
+  });
+
+  return (interaction.output_text || "").trim();
 }
 
 async function callGemini(ai, params, strict) {
@@ -406,9 +452,17 @@ export default async (req, context) => {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   try {
-    let result = await callGemini(ai, params, false);
+    let brief = "";
+    try {
+      brief = await generateContentBrief(ai, params);
+    } catch (err) {
+      console.error("Content brief generation failed, proceeding without it:", err);
+    }
+    const paramsWithBrief = { ...params, brief };
+
+    let result = await callGemini(ai, paramsWithBrief, false);
     if (result.error) {
-      result = await callGemini(ai, params, true);
+      result = await callGemini(ai, paramsWithBrief, true);
     }
     if (result.error) {
       return jsonResponse(502, {
