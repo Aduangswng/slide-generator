@@ -4,6 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Slide Generator</title>
+  <script>
+    // Applied before first paint to avoid a flash of the wrong theme -
+    // the generated slide preview always stays light regardless (a real
+    // presentation shouldn't invert just because the tool's own UI is dark),
+    // so this only ever sets data-theme on <html>, which app.css scopes to
+    // the page chrome.
+    (function () {
+      try {
+        var saved = localStorage.getItem("app-theme");
+        if (saved === "dark" || saved === "light") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -17,8 +32,25 @@
 </head>
 <body>
   <header class="app-header">
-    <h1>AI Slide Generator</h1>
-    <p class="tagline">Describe your presentation. Get a ready-to-present deck.</p>
+    <button
+      type="button"
+      id="theme-toggle"
+      class="theme-toggle"
+      aria-label="Switch to dark mode"
+      aria-pressed="false"
+    >
+      <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+      </svg>
+      <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    </button>
+    <div class="app-header-text">
+      <h1>AI Slide Generator</h1>
+      <p class="tagline">Describe your presentation. Get a ready-to-present deck.</p>
+    </div>
   </header>
 
   <main>

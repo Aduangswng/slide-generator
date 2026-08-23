@@ -32,6 +32,45 @@
   const errorText = document.getElementById("error-text");
   const errorRetryBtn = document.getElementById("error-retry-btn");
 
+  // ---- Dark/light theme toggle ----
+  // The inline script in <head> already applied any saved preference before
+  // first paint (to avoid a flash) - this just wires up the button and keeps
+  // it in sync with that state and the system preference.
+
+  const themeToggle = document.getElementById("theme-toggle");
+  const prefersDarkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+  function currentIsDark() {
+    const explicit = document.documentElement.getAttribute("data-theme");
+    if (explicit === "dark") return true;
+    if (explicit === "light") return false;
+    return prefersDarkQuery.matches;
+  }
+
+  function updateToggleButton() {
+    const isDark = currentIsDark();
+    themeToggle.setAttribute("aria-pressed", String(isDark));
+    themeToggle.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+
+  themeToggle.addEventListener("click", () => {
+    const next = currentIsDark() ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try {
+      localStorage.setItem("app-theme", next);
+    } catch {
+      // Storage can be unavailable (private browsing, disabled cookies) -
+      // the toggle still works for this page view, it just won't persist.
+    }
+    updateToggleButton();
+  });
+
+  prefersDarkQuery.addEventListener("change", () => {
+    if (!document.documentElement.getAttribute("data-theme")) updateToggleButton();
+  });
+
+  updateToggleButton();
+
   let deck = null; // { title, slides: [...] }
   let revealDeck = null;
   let loadingInterval = null;
