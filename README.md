@@ -67,7 +67,8 @@ This serves `index.html` and runs `generate-slides.mjs` as a local function, so 
 
 ## Limits & abuse protection
 
-- Topic capped at 500 characters, audience at 200, slide count clamped to 3–25.
+- Topic capped at 500 characters, audience at 200, additional requirements at 600, slide count
+  clamped to 3–25.
 - A simple per-IP throttle in the function rejects requests faster than one per ~8 seconds with a
   friendly 429 message, to protect the shared free Gemini quota.
 - The API key lives only in Netlify's environment — it's never sent to the browser or bundled

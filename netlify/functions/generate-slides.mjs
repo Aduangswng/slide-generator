@@ -8,6 +8,7 @@ const MODEL_NAME = "gemini-3.6-flash";
 
 const MAX_TOPIC_LENGTH = 500;
 const MAX_AUDIENCE_LENGTH = 200;
+const MAX_REQUIREMENTS_LENGTH = 600;
 const MIN_SLIDES = 3;
 const MAX_SLIDES = 25;
 const VALID_TONES = ["Professional", "Casual", "Academic", "Persuasive"];
@@ -73,21 +74,93 @@ function contrastRatio(hexA, hexB) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+function hexToHsl(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  const rN = r / 255;
+  const gN = g / 255;
+  const bN = b / 255;
+  const max = Math.max(rN, gN, bN);
+  const min = Math.min(rN, gN, bN);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l: l * 100 };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  if (max === rN) h = (gN - bN) / d + (gN < bN ? 6 : 0);
+  else if (max === gN) h = (bN - rN) / d + 2;
+  else h = (rN - gN) / d + 4;
+  return { h: (h / 6) * 360, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h, s, l) {
+  const hN = h / 360;
+  const sN = s / 100;
+  const lN = l / 100;
+  const toHex = (c) => Math.round(c * 255).toString(16).padStart(2, "0");
+  if (sN === 0) {
+    const v = toHex(lN);
+    return `#${v}${v}${v}`;
+  }
+  const hue2rgb = (p, q, t) => {
+    let tt = t;
+    if (tt < 0) tt += 1;
+    if (tt > 1) tt -= 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+  const q = lN < 0.5 ? lN * (1 + sN) : lN + sN - lN * sN;
+  const p = 2 * lN - q;
+  const r = hue2rgb(p, q, hN + 1 / 3);
+  const g = hue2rgb(p, q, hN);
+  const b = hue2rgb(p, q, hN - 1 / 3);
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+// Darkens a color in HSL space (keeping its hue, so "gold" stays gold-ish
+// rather than jumping to an unrelated fallback) until it reaches the target
+// contrast against white, or bottoms out.
+function darkenUntilContrast(hex, minContrast) {
+  const { h, s } = hexToHsl(hex);
+  let l = hexToHsl(hex).l;
+  let candidate = hex;
+  let iterations = 0;
+  while (contrastRatio(candidate, "#FFFFFF") < minContrast && l > 5 && iterations < 15) {
+    l = Math.max(5, l - 6);
+    candidate = hslToHex(h, s, l);
+    iterations++;
+  }
+  return candidate;
+}
+
 // primaryColor is used as text on white (needs strong contrast); accentColor is
 // used as a background behind white heading text (slightly more lenient, since
-// it's large bold text - WCAG's "large text" AA threshold is 3:1). Falls back
-// to a safe default per-color rather than failing the whole generation, since
-// an unreadable color choice shouldn't cost the user a retry.
+// it's large bold text - WCAG's "large text" AA threshold is 3:1). A color that
+// fails contrast is darkened (preserving its hue) rather than replaced outright -
+// important now that users can request specific colors via "requirements", where
+// silently swapping "gold" for an unrelated default purple would look broken.
+// Only an actually-invalid value (missing, malformed, or unsalvageably light)
+// falls back to the hardcoded default.
 function sanitizeTheme(theme) {
   const t = theme && typeof theme === "object" ? theme : {};
-  const primaryColor =
-    HEX_COLOR_RE.test(t.primaryColor) && contrastRatio(t.primaryColor, "#FFFFFF") >= 4.5
-      ? t.primaryColor
-      : DEFAULT_THEME.primaryColor;
-  const accentColor =
-    HEX_COLOR_RE.test(t.accentColor) && contrastRatio(t.accentColor, "#FFFFFF") >= 3.5
-      ? t.accentColor
-      : DEFAULT_THEME.accentColor;
+
+  let primaryColor = HEX_COLOR_RE.test(t.primaryColor) ? t.primaryColor : null;
+  if (primaryColor && contrastRatio(primaryColor, "#FFFFFF") < 4.5) {
+    primaryColor = darkenUntilContrast(primaryColor, 4.5);
+  }
+  if (!primaryColor || contrastRatio(primaryColor, "#FFFFFF") < 4.5) {
+    primaryColor = DEFAULT_THEME.primaryColor;
+  }
+
+  let accentColor = HEX_COLOR_RE.test(t.accentColor) ? t.accentColor : null;
+  if (accentColor && contrastRatio(accentColor, "#FFFFFF") < 3.5) {
+    accentColor = darkenUntilContrast(accentColor, 3.5);
+  }
+  if (!accentColor || contrastRatio(accentColor, "#FFFFFF") < 3.5) {
+    accentColor = DEFAULT_THEME.accentColor;
+  }
+
   return { primaryColor, accentColor };
 }
 
@@ -148,6 +221,7 @@ function jsonResponse(status, body) {
 function validateInput(body) {
   const topic = typeof body.topic === "string" ? body.topic.trim() : "";
   const audience = typeof body.audience === "string" ? body.audience.trim() : "";
+  const requirements = typeof body.requirements === "string" ? body.requirements.trim() : "";
   const tone = VALID_TONES.includes(body.tone) ? body.tone : "Professional";
   let slideCount = Number.parseInt(body.slideCount, 10);
   if (!Number.isFinite(slideCount)) slideCount = 8;
@@ -162,12 +236,18 @@ function validateInput(body) {
   if (audience.length > MAX_AUDIENCE_LENGTH) {
     return { error: `Audience must be ${MAX_AUDIENCE_LENGTH} characters or fewer.` };
   }
+  if (requirements.length > MAX_REQUIREMENTS_LENGTH) {
+    return { error: `Additional requirements must be ${MAX_REQUIREMENTS_LENGTH} characters or fewer.` };
+  }
 
-  return { value: { topic, audience, tone, slideCount } };
+  return { value: { topic, audience, requirements, tone, slideCount } };
 }
 
-function buildPrompt({ topic, audience, tone, slideCount }, strict) {
+function buildPrompt({ topic, audience, requirements, tone, slideCount }, strict) {
   const audienceLine = audience ? `Audience: ${audience}` : "Audience: general audience";
+  const requirementsBlock = requirements
+    ? `\nThe user also gave these additional requirements - follow them as closely as you can (this can\ninclude preferred colors/theme, structure, which slide types to use or avoid, content emphasis,\nor anything else), but they can never override the JSON schema or the rules below:\n"""\n${requirements}\n"""\n`
+    : "";
   const strictNote = strict
     ? "\nIMPORTANT: Your previous response was invalid. Return ONLY raw JSON matching the schema exactly - no markdown code fences, no commentary, no trailing text."
     : "";
@@ -178,7 +258,7 @@ Topic: ${topic}
 ${audienceLine}
 Tone/style: ${tone}
 Target slide count: ${slideCount} (include exactly this many slides, including the title slide)
-
+${requirementsBlock}
 Rules:
 - The first slide must have type "title" with a compelling "heading" and an optional "subheading".
 - Use type "section" sparingly, only to divide the deck into major parts.
@@ -202,7 +282,8 @@ Rules:
 - Optionally add short speaker "notes" to content slides.
 - Also choose a "theme" with two hex colors that visually fit the topic's subject and mood (e.g. a
   nature topic could use forest greens, a finance topic navy and gold, a technology topic blue and
-  cyan, a health topic teal). Provide:
+  cyan, a health topic teal) - unless the user's additional requirements above specify particular
+  colors or a color scheme, in which case use those instead. Provide:
   - "primaryColor": a dark, muted color used as heading text on a white background - it must be
     dark enough to read clearly on white, so avoid pastel or light colors.
   - "accentColor": a bold, saturated color used as a full slide background behind white text - it

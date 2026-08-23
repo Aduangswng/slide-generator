@@ -17,6 +17,7 @@
   const deckForm = document.getElementById("deck-form");
   const topicInput = document.getElementById("topic");
   const audienceInput = document.getElementById("audience");
+  const requirementsInput = document.getElementById("requirements");
   const toneSelect = document.getElementById("tone");
   const slideCountInput = document.getElementById("slideCount");
   const slideCountLabel = document.getElementById("slideCountLabel");
@@ -99,6 +100,7 @@
     const payload = {
       topic,
       audience: audienceInput.value.trim(),
+      requirements: requirementsInput.value.trim(),
       tone: toneSelect.value,
       slideCount: Number.parseInt(slideCountInput.value, 10),
     };
